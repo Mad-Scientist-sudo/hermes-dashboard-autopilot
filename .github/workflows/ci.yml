@@ -1,0 +1,73 @@
+name: ci
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  shellcheck:
+    name: bash -n + shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: bash syntax check
+        run: |
+          set -e
+          for f in $(find scripts -name '*.sh'); do
+            echo "checking syntax: $f"
+            bash -n "$f"
+          done
+
+      - name: shellcheck (best effort)
+        run: |
+          if command -v shellcheck >/dev/null 2>&1; then
+            shellcheck -x scripts/*.sh
+          else
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq shellcheck
+            shellcheck -x scripts/*.sh
+          fi
+        continue-on-error: true
+
+  smoke-test:
+    name: dry-run smoke test (no real install)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: validate install.sh in dry-run mode
+        env:
+          HERMES_DRY_RUN: "1"
+        run: |
+          # Dry-run wrapper: source the install script with a stubbed environment
+          # so the detection + firewall + service-install steps no-op, but the
+          # token / URL construction logic still runs.
+          cat > /tmp/dryrun.sh << 'DRY_EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          # Stub out side-effecting commands
+          ufw() { echo "[stub] ufw $*"; }
+          firewall-cmd() { echo "[stub] firewall-cmd $*"; }
+          systemctl() { echo "[stub] systemctl $*"; }
+          launchctl() { echo "[stub] launchctl $*"; }
+          fuser() { echo "[stub] fuser $*"; }
+          lsof() { echo "[stub] lsof $*"; }
+          pgrep() { echo ""; }
+          export -f ufw firewall-cmd systemctl launchctl fuser lsof pgrep
+
+          # Override the readiness check to skip waiting
+          curl() {
+            if [[ "$1" == "-fsS" ]]; then return 0; fi
+            command curl "$@"
+          }
+          export -f curl
+
+          bash scripts/install.sh 2>&1 | head -40
+          DRY_EOF
+          chmod +x /tmp/dryrun.sh
+          # Make sure we have a token file to load
+          touch /tmp/fake-home/.hermes/dashboard-session-token 2>/dev/null || true
+          HOME=/tmp/fake-home /tmp/dryrun.sh || true

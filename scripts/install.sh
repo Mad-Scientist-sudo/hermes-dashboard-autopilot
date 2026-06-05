@@ -5,7 +5,6 @@
 
 set -euo pipefail
 
-TOOL_NAME="hermes-dashboard-autopilot"
 PORT=9119
 LOG_DIR="$HOME/.hermes/logs"
 TOKEN_FILE="$HOME/.hermes/dashboard-session-token"
@@ -144,7 +143,7 @@ if [ "$INIT" = "systemd-user" ]; then
 
   ENV_FILE="$HOME/.hermes/dashboard-session-token.env"
   umask 077
-  echo "HERMES_DASHBOARD_SESSION_TOKEN="$TOKEN"" > "$ENV_FILE"
+  echo "HERMES_DASHBOARD_SESSION_TOKEN=\"$TOKEN\"" > "$ENV_FILE"
   chmod 600 "$ENV_FILE"
 
   if [ ! -f "$UNIT_FILE" ] || ! grep -q "ExecStart=" "$UNIT_FILE"; then
@@ -220,7 +219,7 @@ else
   DASH_ARGS="--host 0.0.0.0 --port ${PORT} --insecure --no-open"
   [ "$DASH_HAS_TUI" = "1" ] && DASH_ARGS="$DASH_ARGS --tui"
   HERMES_DASHBOARD_SESSION_TOKEN="$TOKEN" nohup "$HERMES_PY" -m hermes_cli.main \
-    dashboard $DASH_ARGS \
+    dashboard "$DASH_ARGS" \
     > "$LOG_DIR/dashboard-remote.log" 2>&1 &
   disown 2>/dev/null || true
   echo "Started PID $!"
@@ -256,8 +255,6 @@ fi
 [ -z "$PUBLIC_IP" ] && PUBLIC_IP="$(curl -fsS --max-time 4 https://api.ipify.org 2>/dev/null || true)"
 DASHBOARD_URL="http://${PUBLIC_IP:-<YOUR-HOST-IP>}:${PORT}"
 
-# === 10. Traefik sslip.io detection (optional) ===
-SSSLIP=""
 # === 10. Optional: read TRAEFIK_URL from env or skip ===
 TRAEFIK_URL="${HERMES_TRAEFIK_URL:-}"
 

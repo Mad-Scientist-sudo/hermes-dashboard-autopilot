@@ -5,10 +5,8 @@
 
 set -euo pipefail
 
-LOG_DIR="$HOME/.hermes/logs"
 TOKEN_FILE="$HOME/.hermes/dashboard-session-token"
 ENV_FILE="$HOME/.hermes/dashboard-session-token.env"
-LOG_FILE="$LOG_DIR/dashboard-remote.log"
 
 KEEP_TOKEN=0
 for arg in "$@"; do

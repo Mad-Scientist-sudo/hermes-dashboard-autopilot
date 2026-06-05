@@ -88,6 +88,8 @@ TOKEN=$(cat "$TOKEN_FILE")
 
 # === 5. Stop existing dashboard on the port ===
 echo "Stopping any existing dashboard on port ${PORT}..."
+
+# Kill by process name match
 for pid in $(pgrep -f "hermes_cli.main dashboard" 2>/dev/null || true); do
   kill "$pid" 2>/dev/null || true
 done
@@ -96,10 +98,18 @@ for pid in $(pgrep -f "hermes_cli.main dashboard" 2>/dev/null || true); do
   kill -9 "$pid" 2>/dev/null || true
 done
 sleep 1
-if [ "$OS" = "linux" ] && command -v fuser >/dev/null 2>&1; then
+
+# Kill anyone still listening on the port (catches stale processes whose
+# command line doesn't match pgrep, e.g. older Hermes versions)
+if command -v lsof >/dev/null 2>&1; then
+  for pid in $(lsof -tiTCP:${PORT} -sTCP:LISTEN 2>/dev/null || true); do
+    kill -9 "$pid" 2>/dev/null || true
+  done
+elif command -v fuser >/dev/null 2>&1; then
   fuser -k "${PORT}/tcp" 2>/dev/null || true
   sleep 1
 fi
+sleep 1
 
 # === 6. Firewall ===
 case "$FW" in
